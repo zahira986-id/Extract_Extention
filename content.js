@@ -38,7 +38,7 @@ if (typeof contentScriptLoaded === 'undefined') {
 
     function extractDataFromPage() {
         const emailRegex = /([a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,})/g;
-        const phoneRegex = /(\+?\d{1,4}?[-.\s]?\(?\d{1,3}?\)?[-.\s]?\d{1,4}[-.\s]?\d{1,4}[-.\s]?\d{1,9})/g;
+        const phoneRegex = /(?:\+?\d{1,3}[-.\s]?)?(?:\(?\d{1,4}?\)?[-.\s]?)?\d{1,5}(?:[-.\s]?\d{1,5}){2,8}/g;
         // Détection des liens de réseaux sociaux
         const socialRegex = /(https?:\/\/(www\.)?(facebook|instagram|linkedin|twitter|x|youtube|tiktok)\.com\/[a-zA-Z0-9._%-]+)/g;
 
