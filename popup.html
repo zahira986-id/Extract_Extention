@@ -1,0 +1,73 @@
+<!DOCTYPE html>
+<html>
+
+<head>
+    <meta charset="UTF-8">
+    <title>Email Extractor</title>
+    <link rel="stylesheet" href="popup.css">
+</head>
+
+<body>
+    <div class="container">
+        <h2>Email Extractor</h2>
+
+        <button id="startBtn" class="btn btn-primary"> Start Extraction</button>
+        <button id="stopBtn" class="btn btn-secondary" style="display: none;">⏹️ Stop</button>
+
+        <div id="extractionProgress" style="display: none;">
+            <div class="progress-bar">
+                <div id="progressBarFill" style="width: 0%; height: 100%; background: white; transition: width 0.3s;">
+                </div>
+            </div>
+            <p style="text-align: center; font-size: 13px;">Extraction en cours... <span id="progressText">0%</span></p>
+        </div>
+
+        <!-- Système d'Onglets -->
+        <div id="resultsContainer" style="display: none;">
+            <div class="tabs">
+                <div id="tabEmails" class="tab active">E-mails (<span id="countEmails">0</span>)</div>
+                <div id="tabPhones" class="tab">Tél (<span id="countPhones">0</span>)</div>
+                <div id="tabSocials" class="tab">Social (<span id="countSocials">0</span>)</div>
+            </div>
+
+            <div id="contentEmails" class="tab-content active">
+                <div class="result-header">
+                    <h3>E-mails extraits</h3>
+                    <button id="copyEmails" class="action-btn" style="padding: 5px 10px; font-size: 11px;">Copier
+                        tout</button>
+                </div>
+                <div id="emailList" class="item-list"></div>
+            </div>
+
+            <div id="contentPhones" class="tab-content">
+                <div class="result-header">
+                    <h3>Téléphones</h3>
+                    <button id="copyPhones" class="action-btn" style="padding: 5px 10px; font-size: 11px;">Copier
+                        tout</button>
+                </div>
+                <div id="phoneList" class="item-list"></div>
+            </div>
+
+            <div id="contentSocials" class="tab-content">
+                <div class="result-header">
+                    <h3>Réseaux Sociaux</h3>
+                    <button id="copySocials" class="action-btn" style="padding: 5px 10px; font-size: 11px;">Copier
+                        tout</button>
+                </div>
+                <div id="socialList" class="item-list"></div>
+            </div>
+        </div>
+
+        <div class="stats">
+            <span>Total: <b id="totalItems">0</b></span>
+            <button id="clearData"
+                style="background: none; border: none; color: rgba(255,255,255,0.7); cursor: pointer; text-decoration: underline; font-size: 11px; margin-left: 10px;">Effacer</button>
+        </div>
+    </div>
+
+    <div id="notification" class="notification"></div>
+
+    <script src="popup.js"></script>
+</body>
+
+</html>
