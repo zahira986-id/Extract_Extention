@@ -1,0 +1,221 @@
+<!DOCTYPE html>
+<html>
+
+<head>
+    <meta charset="UTF-8">
+    <title>Email Extractor</title>
+    <style>
+        :root {
+            --primary-bg: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            --accent-gradient: linear-gradient(135deg, #00b09b 0%, #96c93d 100%);
+            --danger-color: #ff6b6b;
+            --text-color: white;
+            --card-bg: rgba(255, 255, 255, 0.1);
+            --item-bg: white;
+        }
+
+        body {
+            width: 350px;
+            padding: 15px;
+            font-family: 'Segoe UI', Roboto, Helvetica, Arial, sans-serif;
+            background: var(--primary-bg);
+            color: var(--text-color);
+            margin: 0;
+        }
+
+        .container {
+            background: var(--card-bg);
+            backdrop-filter: blur(10px);
+            border-radius: 12px;
+            padding: 20px;
+            box-shadow: 0 8px 32px rgba(0, 0, 0, 0.2);
+        }
+
+        h2 {
+            text-align: center;
+            margin-top: 0;
+            margin-bottom: 20px;
+            font-size: 1.4rem;
+        }
+
+        .btn {
+            display: block;
+            width: 100%;
+            padding: 10px;
+            margin: 8px 0;
+            border: none;
+            border-radius: 6px;
+            font-size: 0.95rem;
+            font-weight: 600;
+            cursor: pointer;
+            transition: all 0.2s ease;
+        }
+
+        .btn-primary {
+            background: var(--accent-gradient);
+            color: white;
+        }
+
+        .btn-primary:hover {
+            transform: translateY(-1px);
+            box-shadow: 0 4px 12px rgba(0, 176, 155, 0.3);
+        }
+
+        .btn-secondary {
+            background: var(--danger-color);
+            color: white;
+        }
+
+        .btn-secondary:hover {
+            filter: brightness(1.1);
+        }
+
+        .loader {
+            display: none;
+            text-align: center;
+            margin: 15px 0;
+        }
+
+        .loader-spinner {
+            border: 4px solid rgba(255, 255, 255, 0.3);
+            border-top: 4px solid white;
+            border-radius: 50%;
+            width: 40px;
+            height: 40px;
+            animation: spin 1s linear infinite;
+            margin: 0 auto;
+        }
+
+        @keyframes spin {
+            0% {
+                transform: rotate(0deg);
+            }
+
+            100% {
+                transform: rotate(360deg);
+            }
+        }
+
+        .results {
+            display: none;
+            margin-top: 20px;
+            background: rgba(255, 255, 255, 0.9);
+            border-radius: 10px;
+            padding: 15px;
+            color: #333;
+            max-height: 250px;
+            overflow-y: auto;
+        }
+
+        .result-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 10px;
+            color: #333;
+        }
+
+        .email-item {
+            padding: 10px;
+            margin: 5px 0;
+            background: white;
+            border-radius: 6px;
+            cursor: pointer;
+            transition: all 0.3s;
+            border: 1px solid #e0e0e0;
+        }
+
+        .email-item:hover {
+            background: #f0f8ff;
+            transform: translateX(5px);
+            border-color: #667eea;
+        }
+
+        .email-item.selected {
+            background: #e6f7ff;
+            border-color: #1890ff;
+        }
+
+        .stats {
+            margin-top: 15px;
+            padding-top: 15px;
+            border-top: 1px solid rgba(255, 255, 255, 0.3);
+            text-align: center;
+        }
+
+        .stats span {
+            display: inline-block;
+            padding: 5px 10px;
+            background: rgba(255, 255, 255, 0.2);
+            border-radius: 20px;
+            margin: 0 5px;
+        }
+
+        .progress-bar {
+            width: 100%;
+            height: 4px;
+            background: rgba(255, 255, 255, 0.2);
+            border-radius: 2px;
+            margin: 10px 0;
+            overflow: hidden;
+        }
+
+        .progress-fill {
+            height: 100%;
+            background: linear-gradient(90deg, #00b09b, #96c93d);
+            width: 0%;
+            transition: width 0.3s ease;
+        }
+
+        .notification {
+            position: fixed;
+            top: 20px;
+            right: 20px;
+            background: white;
+            color: #333;
+            padding: 15px;
+            border-radius: 8px;
+            box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
+            display: none;
+            z-index: 10000;
+            max-width: 300px;
+        }
+    </style>
+</head>
+
+<body>
+    <div class="container">
+        <h2>📧 Email Extractor</h2>
+
+        <button id="startBtn" class="btn btn-primary">🚀 Start Extraction</button>
+        <button id="stopBtn" class="btn btn-secondary" style="display: none;">⏹️ Stop</button>
+
+        <div class="progress-bar">
+            <div class="progress-fill"></div>
+        </div>
+
+        <div class="loader">
+            <div class="loader-spinner"></div>
+            <p>Scanning page for emails...</p>
+        </div>
+
+        <div id="results" class="results">
+            <div class="result-header">
+                <h3 style="margin: 0;">📋 Emails Found</h3>
+                <button id="copyBtn" style="padding: 5px 10px; font-size: 12px;">📋 Copy Selected</button>
+            </div>
+            <div id="emailList"></div>
+        </div>
+
+        <div class="stats">
+            <span id="totalCount">Total: 0</span>
+            <span id="foundCount">Found: 0</span>
+        </div>
+    </div>
+
+    <div id="notification" class="notification"></div>
+
+    <script src="popup.js"></script>
+</body>
+
+</html>
