@@ -96,15 +96,42 @@
             }
         }
 
-        .results {
+        /* Onglets */
+        .tabs {
+            display: flex;
+            margin-top: 15px;
+            border-bottom: 1px solid rgba(255, 255, 255, 0.2);
+            gap: 5px;
+        }
+
+        .tab {
+            padding: 8px 12px;
+            cursor: pointer;
+            border-radius: 8px 8px 0 0;
+            background: rgba(255, 255, 255, 0.1);
+            font-size: 13px;
+            font-weight: 500;
+            transition: all 0.2s;
+        }
+
+        .tab.active {
+            background: white;
+            color: #333;
+        }
+
+        .tab-content {
             display: none;
-            margin-top: 20px;
+            margin-top: 10px;
             background: rgba(255, 255, 255, 0.9);
-            border-radius: 10px;
+            border-radius: 0 0 10px 10px;
             padding: 15px;
             color: #333;
             max-height: 250px;
             overflow-y: auto;
+        }
+
+        .tab-content.active {
+            display: block;
         }
 
         .result-header {
@@ -112,28 +139,18 @@
             justify-content: space-between;
             align-items: center;
             margin-bottom: 10px;
-            color: #333;
         }
 
-        .email-item {
-            padding: 10px;
+        .email-item,
+        .phone-item,
+        .social-item {
+            padding: 8px;
             margin: 5px 0;
             background: white;
             border-radius: 6px;
-            cursor: pointer;
-            transition: all 0.3s;
-            border: 1px solid #e0e0e0;
-        }
-
-        .email-item:hover {
-            background: #f0f8ff;
-            transform: translateX(5px);
-            border-color: #667eea;
-        }
-
-        .email-item.selected {
-            background: #e6f7ff;
-            border-color: #1890ff;
+            font-size: 13px;
+            border: 1px solid #eee;
+            word-break: break-all;
         }
 
         .stats {
@@ -141,22 +158,23 @@
             padding-top: 15px;
             border-top: 1px solid rgba(255, 255, 255, 0.3);
             text-align: center;
+            font-size: 12px;
         }
 
         .stats span {
             display: inline-block;
-            padding: 5px 10px;
+            padding: 4px 10px;
             background: rgba(255, 255, 255, 0.2);
             border-radius: 20px;
-            margin: 0 5px;
+            margin: 0 3px;
         }
 
         .progress-bar {
             width: 100%;
-            height: 4px;
+            height: 6px;
             background: rgba(255, 255, 255, 0.2);
-            border-radius: 2px;
-            margin: 10px 0;
+            border-radius: 3px;
+            margin: 15px 0;
             overflow: hidden;
         }
 
@@ -190,26 +208,54 @@
         <button id="startBtn" class="btn btn-primary">🚀 Start Extraction</button>
         <button id="stopBtn" class="btn btn-secondary" style="display: none;">⏹️ Stop</button>
 
-        <div class="progress-bar">
-            <div class="progress-fill"></div>
-        </div>
-
-        <div class="loader">
-            <div class="loader-spinner"></div>
-            <p>Scanning page for emails...</p>
-        </div>
-
-        <div id="results" class="results">
-            <div class="result-header">
-                <h3 style="margin: 0;">📋 Emails Found</h3>
-                <button id="copyBtn" style="padding: 5px 10px; font-size: 12px;">📋 Copy Selected</button>
+        <div id="extractionProgress" style="display: none;">
+            <div class="progress-bar">
+                <div id="progressBarFill" style="width: 0%; height: 100%; background: white; transition: width 0.3s;">
+                </div>
             </div>
-            <div id="emailList"></div>
+            <p style="text-align: center; font-size: 13px;">Extraction en cours... <span id="progressText">0%</span></p>
+        </div>
+
+        <!-- Système d'Onglets -->
+        <div id="resultsContainer" style="display: none;">
+            <div class="tabs">
+                <div id="tabEmails" class="tab active">E-mails (<span id="countEmails">0</span>)</div>
+                <div id="tabPhones" class="tab">Tél (<span id="countPhones">0</span>)</div>
+                <div id="tabSocials" class="tab">Social (<span id="countSocials">0</span>)</div>
+            </div>
+
+            <div id="contentEmails" class="tab-content active">
+                <div class="result-header">
+                    <h3>E-mails extraits</h3>
+                    <button id="copyEmails" class="action-btn" style="padding: 5px 10px; font-size: 11px;">Copier
+                        tout</button>
+                </div>
+                <div id="emailList" class="item-list"></div>
+            </div>
+
+            <div id="contentPhones" class="tab-content">
+                <div class="result-header">
+                    <h3>Téléphones</h3>
+                    <button id="copyPhones" class="action-btn" style="padding: 5px 10px; font-size: 11px;">Copier
+                        tout</button>
+                </div>
+                <div id="phoneList" class="item-list"></div>
+            </div>
+
+            <div id="contentSocials" class="tab-content">
+                <div class="result-header">
+                    <h3>Réseaux Sociaux</h3>
+                    <button id="copySocials" class="action-btn" style="padding: 5px 10px; font-size: 11px;">Copier
+                        tout</button>
+                </div>
+                <div id="socialList" class="item-list"></div>
+            </div>
         </div>
 
         <div class="stats">
-            <span id="totalCount">Total: 0</span>
-            <span id="foundCount">Found: 0</span>
+            <span>Total: <b id="totalItems">0</b></span>
+            <button id="clearData"
+                style="background: none; border: none; color: rgba(255,255,255,0.7); cursor: pointer; text-decoration: underline; font-size: 11px; margin-left: 10px;">Effacer</button>
         </div>
     </div>
 

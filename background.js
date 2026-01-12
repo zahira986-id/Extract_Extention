@@ -2,12 +2,14 @@
 
 // Initialisation du stockage
 chrome.runtime.onInstalled.addListener(() => {
-    console.log('Email Extractor extension installed');
+    console.log('Multi-Extractor extension installed');
 
     // Initialisation des données dans le stockage local
     chrome.storage.local.set({
         extractedEmails: [],
-        totalEmailsFound: 0,
+        extractedPhones: [],
+        extractedSocials: [],
+        totalItemsFound: 0,
         extractionHistory: []
     });
 });
@@ -15,13 +17,13 @@ chrome.runtime.onInstalled.addListener(() => {
 // Écoute les messages du content script
 chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
     switch (message.action) {
-        case 'emailsExtracted':
-            handleEmailsExtracted(message.emails, message.url, message.timestamp);
+        case 'allDataExtracted':
+            handleDataExtracted(message);
             sendResponse({ status: 'success' });
             break;
 
         case 'getStats':
-            chrome.storage.local.get(['totalEmailsFound', 'extractionHistory'], (data) => {
+            chrome.storage.local.get(['totalItemsFound', 'extractionHistory'], (data) => {
                 sendResponse(data);
             });
             return true; // Indique qu'on va appeler sendResponse de façon asynchrone
@@ -29,7 +31,9 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
         case 'clearData':
             chrome.storage.local.set({
                 extractedEmails: [],
-                totalEmailsFound: 0,
+                extractedPhones: [],
+                extractedSocials: [],
+                totalItemsFound: 0,
                 extractionHistory: []
             });
             sendResponse({ status: 'cleared' });
@@ -53,52 +57,57 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
     return true; // Garde le canal ouvert pour sendResponse
 });
 
-// Gestion des emails extraits
-function handleEmailsExtracted(emails, url, timestamp) {
-    if (!emails || emails.length === 0) return;
+// Gestion des données extraites
+function handleDataExtracted(message) {
+    const { emails, phones, socials, url, timestamp } = message;
 
-    chrome.storage.local.get(['extractedEmails', 'totalEmailsFound', 'extractionHistory'], (data) => {
+    chrome.storage.local.get(['extractedEmails', 'extractedPhones', 'extractedSocials', 'totalItemsFound', 'extractionHistory'], (data) => {
         const existingEmails = new Set(data.extractedEmails || []);
-        const newEmails = emails.filter(email => !existingEmails.has(email));
+        const existingPhones = new Set(data.extractedPhones || []);
+        const existingSocials = new Set(data.extractedSocials || []);
 
-        if (newEmails.length === 0) return;
+        const newEmails = emails.filter(e => !existingEmails.has(e));
+        const newPhones = phones.filter(p => !existingPhones.has(p));
+        const newSocials = socials.filter(s => !existingSocials.has(s));
 
-        // Mise à jour des emails
+        const totalNew = newEmails.length + newPhones.length + newSocials.length;
+        if (totalNew === 0) return;
+
+        // Mise à jour
         const allEmails = [...(data.extractedEmails || []), ...newEmails];
+        const allPhones = [...(data.extractedPhones || []), ...newPhones];
+        const allSocials = [...(data.extractedSocials || []), ...newSocials];
 
-        // Création de l'entrée d'historique
         const historyEntry = {
             url,
             timestamp,
-            count: newEmails.length,
-            emails: newEmails
+            counts: { emails: emails.length, phones: phones.length, socials: socials.length },
+            newCounts: { emails: newEmails.length, phones: newPhones.length, socials: newSocials.length }
         };
 
-        // Garder seulement les 10 dernières entrées d'historique pour l'optimisation
-        const currentHistory = data.extractionHistory || [];
-        const updatedHistory = [...currentHistory, historyEntry].slice(-10);
+        const updatedHistory = [...(data.extractionHistory || []), historyEntry].slice(-10);
 
-        // Sauvegarde des données
         chrome.storage.local.set({
             extractedEmails: allEmails,
-            totalEmailsFound: (data.totalEmailsFound || 0) + newEmails.length,
+            extractedPhones: allPhones,
+            extractedSocials: allSocials,
+            totalItemsFound: (data.totalItemsFound || 0) + totalNew,
             extractionHistory: updatedHistory
         });
 
-        // Notification à l'utilisateur
-        showNotification(newEmails.length, url);
+        // Notification
+        showNotification(totalNew, url);
     });
 }
 
 // Affichage de notification
-function showNotification(emailCount, url) {
+function showNotification(itemCount, url) {
     const domain = new URL(url).hostname;
-
     chrome.notifications.create({
         type: 'basic',
         iconUrl: 'images/icon128.png',
-        title: 'Emails trouvés !',
-        message: `${emailCount} nouveau(x) email(s) extrait(s) depuis ${domain}`,
+        title: 'Données trouvées !',
+        message: `${itemCount} nouvelle(s) donnée(s) extraite(s) depuis ${domain}`,
         priority: 2
     });
 }

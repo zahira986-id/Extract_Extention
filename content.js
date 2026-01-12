@@ -7,6 +7,8 @@ if (typeof contentScriptLoaded === 'undefined') {
 
     var isExtracting = false;
     var foundEmails = [];
+    var foundPhones = [];
+    var foundSocials = [];
     var emailElements = [];
 
     // Écouter les messages de la popup
@@ -15,8 +17,8 @@ if (typeof contentScriptLoaded === 'undefined') {
             startExtraction();
         } else if (message.action === 'stopExtraction') {
             stopExtraction();
-        } else if (message.action === 'scrollToEmail') {
-            scrollToEmail(message.index);
+        } else if (message.action === 'scrollToEmail' || message.action === 'scrollToItem') {
+            highlightItem(message.type || 'email', message.index);
         }
     });
 
@@ -24,27 +26,21 @@ if (typeof contentScriptLoaded === 'undefined') {
 
     function startExtraction() {
         if (isExtracting) return;
-
         isExtracting = true;
         foundEmails = [];
+        foundPhones = [];
+        foundSocials = [];
         emailElements = [];
-
-        // Envoyer un signal de début d'extraction
-        chrome.runtime.sendMessage({
-            action: 'extractionProgress',
-            progress: 10
-        });
-
-        // Extraction des emails
-        extractEmailsFromPage();
-
-        // Simuler la progression
+        chrome.runtime.sendMessage({ action: 'extractionProgress', progress: 10 });
+        extractDataFromPage();
         simulateExtractionProgress();
     }
 
-    function extractEmailsFromPage() {
-        // Regex amélioré pour une meilleure précision
+    function extractDataFromPage() {
         const emailRegex = /([a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,})/g;
+        const phoneRegex = /(\+?\d{1,4}?[-.\s]?\(?\d{1,3}?\)?[-.\s]?\d{1,4}[-.\s]?\d{1,4}[-.\s]?\d{1,9})/g;
+        // Détection des liens de réseaux sociaux
+        const socialRegex = /(https?:\/\/(www\.)?(facebook|instagram|linkedin|twitter|x|youtube|tiktok)\.com\/[a-zA-Z0-9._%-]+)/g;
 
         // Sélecteur pour ignorer les balises non textuelles
         const ignoreTags = ['SCRIPT', 'STYLE', 'NOSCRIPT', 'IFRAME', 'CANVAS', 'SVG'];
@@ -54,9 +50,7 @@ if (typeof contentScriptLoaded === 'undefined') {
             NodeFilter.SHOW_TEXT,
             {
                 acceptNode: (node) => {
-                    if (ignoreTags.includes(node.parentNode.tagName)) {
-                        return NodeFilter.FILTER_REJECT;
-                    }
+                    if (ignoreTags.includes(node.parentNode.tagName)) return NodeFilter.FILTER_REJECT;
                     return NodeFilter.FILTER_ACCEPT;
                 }
             },
@@ -67,73 +61,60 @@ if (typeof contentScriptLoaded === 'undefined') {
         const nodesToProcess = [];
 
         // Un seul passage pour collecter les nœuds valides
-        while (node = walker.nextNode()) {
-            nodesToProcess.push(node);
-        }
-
+        while (node = walker.nextNode()) nodesToProcess.push(node);
         const totalNodes = nodesToProcess.length;
 
         nodesToProcess.forEach((node, index) => {
             if (!isExtracting) return;
-
             const text = node.textContent;
-            const matches = [...text.matchAll(emailRegex)];
+
+            // On cherche tous les types dans le texte
+            const matches = [
+                ...[...text.matchAll(emailRegex)].map(m => ({ type: 'email', val: m[0], index: m.index, color: 'rgba(255,255,0,0.3)' })),
+                ...[...text.matchAll(phoneRegex)].map(m => {
+                    // Filtrage basique pour éviter les faux positifs (comme les dates ou versions)
+                    if (m[0].replace(/[-.\s]/g, '').length < 8) return null;
+                    return { type: 'phone', val: m[0], index: m.index, color: 'rgba(0,255,123,0.3)' };
+                }).filter(m => m),
+                ...[...text.matchAll(socialRegex)].map(m => ({ type: 'social', val: m[0], index: m.index, color: 'rgba(123,0,255,0.3)' }))
+            ].sort((a, b) => a.index - b.index);
 
             if (matches.length > 0) {
                 const fragment = document.createDocumentFragment();
                 let lastIndex = 0;
 
                 matches.forEach(match => {
-                    const email = match[0];
-                    if (!foundEmails.includes(email)) {
-                        foundEmails.push(email);
+                    if (match.index < lastIndex) return; // Éviter les chevauchements
 
-                        // Création du texte avant l'email
+                    const val = match.val;
+                    const list = match.type === 'email' ? foundEmails : (match.type === 'phone' ? foundPhones : foundSocials);
+
+                    if (!list.includes(val)) {
+                        list.push(val);
                         fragment.appendChild(document.createTextNode(text.substring(lastIndex, match.index)));
-
-                        // Création du span de surbrillance
                         const span = document.createElement('span');
-                        span.className = 'extracted-email-highlight';
-                        span.style.cssText = `
-                        background-color: rgba(255, 255, 0, 0.3);
-                        border-bottom: 2px solid #ff6b6b;
-                        padding: 2px 0;
-                        transition: all 0.3s ease;
-                        cursor: pointer;
-                    `;
-                        span.textContent = email;
-                        span.dataset.email = email;
-                        span.dataset.index = foundEmails.length - 1;
+                        span.className = 'extracted-item-highlight';
+                        span.style.cssText = `background-color:${match.color};border-bottom:2px solid #ff6b6b;padding:2px 0;transition:all 0.3s ease;cursor:pointer;`;
+                        span.textContent = val;
+                        span.dataset.val = val;
+                        span.dataset.type = match.type;
+                        span.dataset.index = list.length - 1;
 
-                        span.addEventListener('mouseenter', () => {
-                            span.style.backgroundColor = 'rgba(255, 107, 107, 0.5)';
-                            span.style.boxShadow = '0 0 0 2px rgba(255, 107, 107, 0.3)';
-                        });
-
-                        span.addEventListener('mouseleave', () => {
-                            span.style.backgroundColor = 'rgba(255, 255, 0, 0.3)';
-                            span.style.boxShadow = 'none';
-                        });
-
+                        span.addEventListener('mouseenter', () => span.style.backgroundColor = 'rgba(255,107,107,0.5)');
+                        span.addEventListener('mouseleave', () => span.style.backgroundColor = match.color);
                         span.addEventListener('click', (e) => {
                             e.stopPropagation();
-                            highlightEmail(parseInt(span.dataset.index));
+                            highlightItem(match.type, parseInt(span.dataset.index));
                         });
 
                         fragment.appendChild(span);
-                        emailElements.push(span);
-                        lastIndex = match.index + email.length;
+                        emailElements.push(span); // On garde la même liste pour le scroll par simplicité pour l'instant
+                        lastIndex = match.index + val.length;
                     }
                 });
 
-                // Texte restant après le dernier match
-                if (lastIndex < text.length) {
-                    fragment.appendChild(document.createTextNode(text.substring(lastIndex)));
-                }
-
-                if (fragment.childNodes.length > 0) {
-                    node.parentNode.replaceChild(fragment, node);
-                }
+                if (lastIndex < text.length) fragment.appendChild(document.createTextNode(text.substring(lastIndex)));
+                if (fragment.childNodes.length > 0) node.parentNode.replaceChild(fragment, node);
             }
 
             // Notification de progression toutes les 10 itérations pour économiser des messages
@@ -143,43 +124,43 @@ if (typeof contentScriptLoaded === 'undefined') {
             }
         });
 
+        // Extraction aussi depuis les liens (href) pour les réseaux sociaux
+        const links = document.querySelectorAll('a[href]');
+        links.forEach(link => {
+            const href = link.href;
+            if (socialRegex.test(href) && !foundSocials.includes(href)) {
+                foundSocials.push(href);
+            }
+        });
+
         if (isExtracting) {
             const resultData = {
-                action: 'emailsFound',
+                action: 'dataFound',
                 emails: foundEmails,
+                phones: foundPhones,
+                socials: foundSocials,
                 url: window.location.href,
                 timestamp: new Date().toISOString()
             };
             chrome.runtime.sendMessage(resultData);
-            chrome.runtime.sendMessage({ ...resultData, action: 'emailsExtracted' });
+            chrome.runtime.sendMessage({ ...resultData, action: 'allDataExtracted' });
         }
-
         isExtracting = false;
     }
 
-    function highlightEmail(index) {
-        if (emailElements[index]) {
-            // Animation de surbrillance
-            const element = emailElements[index];
-            element.style.backgroundColor = '#ff6b6b';
-            element.style.color = 'white';
-            element.style.transition = 'all 0.3s ease';
-
-            // Scroll vers l'élément
-            element.scrollIntoView({ behavior: 'smooth', block: 'center' });
-
-            // Restaurer la couleur après 2 secondes
+    function highlightItem(type, index) {
+        // Pour l'instant on garde une gestion simple, on pourra affiner si besoin
+        // par type si on sépare les emailElements
+        const item = document.querySelector(`.extracted-item-highlight[data-type="${type}"][data-index="${index}"]`);
+        if (item) {
+            item.style.backgroundColor = '#ff6b6b';
+            item.style.color = 'white';
+            item.scrollIntoView({ behavior: 'smooth', block: 'center' });
             setTimeout(() => {
-                element.style.backgroundColor = 'rgba(255, 255, 0, 0.3)';
-                element.style.color = 'inherit';
+                const color = type === 'email' ? 'rgba(255,255,0,0.3)' : (type === 'phone' ? 'rgba(0,255,123,0.3)' : 'rgba(123,0,255,0.3)');
+                item.style.backgroundColor = color;
+                item.style.color = 'inherit';
             }, 2000);
-
-            // Notifier la popup
-            chrome.runtime.sendMessage({
-                action: 'emailHighlighted',
-                index: index,
-                email: element.dataset.email
-            });
         }
     }
 

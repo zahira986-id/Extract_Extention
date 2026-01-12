@@ -2,7 +2,7 @@
     "manifest_version": 3,
     "name": "Extractor",
     "version": "1.0",
-    "description": "Extrait les adresses email et SM des pages web visitees",
+    "description": "Extrait les e-mails, les numéros de téléphone et les liens de réseaux sociaux des pages web.",
     "permissions": [
         "activeTab",
         "scripting",

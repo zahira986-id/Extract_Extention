@@ -1,221 +1,165 @@
-// popup.js
-
-document.addEventListener('DOMContentLoaded', function () {
+document.addEventListener('DOMContentLoaded', async () => {
+    // Éléments UI
     const startBtn = document.getElementById('startBtn');
     const stopBtn = document.getElementById('stopBtn');
-    const loader = document.querySelector('.loader');
-    const results = document.getElementById('results');
+    const extractionProgress = document.getElementById('extractionProgress');
+    const progressBarFill = document.getElementById('progressBarFill');
+    const progressText = document.getElementById('progressText');
+    const resultsContainer = document.getElementById('resultsContainer');
+
     const emailList = document.getElementById('emailList');
-    const copyBtn = document.getElementById('copyBtn');
-    const totalCount = document.getElementById('totalCount');
-    const foundCount = document.getElementById('foundCount');
-    const progressFill = document.querySelector('.progress-fill');
-    const notification = document.getElementById('notification');
+    const phoneList = document.getElementById('phoneList');
+    const socialList = document.getElementById('socialList');
 
-    let selectedEmails = new Set();
-    let extractionActive = false;
+    const countEmails = document.getElementById('countEmails');
+    const countPhones = document.getElementById('countPhones');
+    const countSocials = document.getElementById('countSocials');
+    const totalItems = document.getElementById('totalItems');
 
-    // Récupérer les statistiques depuis le background
-    chrome.runtime.sendMessage({ action: 'getStats' }, (data) => {
-        if (data && data.totalEmailsFound) {
-            totalCount.textContent = `Total: ${data.totalEmailsFound}`;
-        }
+    const tabs = document.querySelectorAll('.tab');
+    const tabContents = document.querySelectorAll('.tab-content');
+
+    // État local
+    let currentData = { emails: [], phones: [], socials: [] };
+
+    // Initialisation
+    loadStoredData();
+
+    // Gestion des Onglets
+    tabs.forEach(tab => {
+        tab.addEventListener('click', () => {
+            const target = tab.id.replace('tab', 'content');
+            tabs.forEach(t => t.classList.remove('active'));
+            tabContents.forEach(c => c.classList.remove('active'));
+            tab.classList.add('active');
+            document.getElementById(target).classList.add('active');
+        });
     });
 
-    // Bouton Start
+    // Start Extraction
     startBtn.addEventListener('click', async () => {
-        startBtn.style.display = 'none';
-        stopBtn.style.display = 'block';
-        loader.style.display = 'block';
-        progressFill.style.width = '0%';
-        extractionActive = true;
-
-        // Récupérer l'onglet actif
         const [tab] = await chrome.tabs.query({ active: true, currentWindow: true });
 
-        // Vérifier si le content script est déjà injecté
+        // Protection contre injection multiple
         let alreadyInjected = false;
         try {
             const results = await chrome.scripting.executeScript({
                 target: { tabId: tab.id },
-                func: () => window.isEmailExtractorInjected
+                func: () => window.contentScriptLoaded
             });
             alreadyInjected = results[0]?.result;
-        } catch (e) {
-            console.log("Could not check injection status", e);
-        }
+        } catch (e) { }
 
         if (!alreadyInjected) {
-            try {
-                await chrome.scripting.executeScript({
-                    target: { tabId: tab.id },
-                    files: ['content.js']
-                });
-            } catch (e) {
-                console.error("Injection failed", e);
-            }
+            await chrome.scripting.executeScript({ target: { tabId: tab.id }, files: ['content.js'] });
         }
 
-        // Demander l'extraction des emails
         chrome.tabs.sendMessage(tab.id, { action: 'startExtraction' });
 
-        // Simuler une progression
-        simulateProgress();
+        startBtn.style.display = 'none';
+        stopBtn.style.display = 'block';
+        extractionProgress.style.display = 'block';
     });
 
-    // Bouton Stop
-    stopBtn.addEventListener('click', () => {
-        stopExtraction();
+    // Stop Extraction
+    stopBtn.addEventListener('click', async () => {
+        const [tab] = await chrome.tabs.query({ active: true, currentWindow: true });
+        chrome.tabs.sendMessage(tab.id, { action: 'stopExtraction' });
+        resetUI();
     });
 
-    // Bouton Copy
-    copyBtn.addEventListener('click', () => {
-        const emailsToCopy = Array.from(selectedEmails);
-        if (emailsToCopy.length > 0) {
-            navigator.clipboard.writeText(emailsToCopy.join('\n'))
-                .then(() => {
-                    showNotification(`${emailsToCopy.length} email(s) copied to clipboard!`);
-                })
-                .catch(err => {
-                    showNotification('Failed to copy emails');
-                    console.error('Copy failed:', err);
-                });
-        } else {
-            showNotification('No emails selected!');
-        }
-    });
-
-    // Écouter les messages du content script
-    chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
+    // Écouter les messages de progression et résultats
+    chrome.runtime.onMessage.addListener((message) => {
         if (message.action === 'extractionProgress') {
-            const progress = message.progress;
-            progressFill.style.width = `${progress}%`;
-
-            if (progress >= 100) {
-                loader.querySelector('p').textContent = 'Extraction complete!';
-            }
+            progressBarFill.style.width = `${message.progress}%`;
+            progressText.textContent = `${Math.floor(message.progress)}%`;
         }
 
-        if (message.action === 'emailsFound') {
-            loader.style.display = 'none';
-            results.style.display = 'block';
-            displayEmails(message.emails);
-            foundCount.textContent = `Found: ${message.emails.length}`;
+        if (message.action === 'dataFound' || message.action === 'allDataExtracted') {
+            currentData.emails = message.emails || [];
+            currentData.phones = message.phones || [];
+            currentData.socials = message.socials || [];
+            updateDisplay();
 
-            // Mettre à jour le total
-            chrome.runtime.sendMessage({ action: 'getStats' }, (data) => {
-                if (data && data.totalEmailsFound) {
-                    totalCount.textContent = `Total: ${data.totalEmailsFound}`;
-                }
-            });
-
-            if (extractionActive) {
-                stopExtraction();
+            if (message.action === 'allDataExtracted') {
+                resetUI();
             }
-        }
-
-        if (message.action === 'emailHighlighted') {
-            // Scroll vers l'email sur la page
-            chrome.tabs.query({ active: true, currentWindow: true }, (tabs) => {
-                chrome.tabs.sendMessage(tabs[0].id, {
-                    action: 'scrollToEmail',
-                    index: message.index
-                });
-            });
         }
     });
 
-    function displayEmails(emails) {
-        emailList.innerHTML = '';
-        selectedEmails.clear();
+    // Copie
+    document.getElementById('copyEmails').addEventListener('click', (e) => copyToClipboard(currentData.emails, e.target));
+    document.getElementById('copyPhones').addEventListener('click', (e) => copyToClipboard(currentData.phones, e.target));
+    document.getElementById('copySocials').addEventListener('click', (e) => copyToClipboard(currentData.socials, e.target));
 
-        emails.forEach((email, index) => {
-            const emailElement = document.createElement('div');
-            emailElement.className = 'email-item';
-            emailElement.innerHTML = `
-                <input type="checkbox" id="email-${index}" style="margin-right: 10px;">
-                <label for="email-${index}" style="cursor: pointer;">
-                    ${email}
-                    <button class="highlight-btn" data-index="${index}" 
-                            style="float: right; padding: 2px 8px; font-size: 11px; background: #667eea; color: white; border: none; border-radius: 3px;">
-                        🔍 Highlight
-                    </button>
-                </label>
-            `;
+    // Effacer
+    document.getElementById('clearData').addEventListener('click', () => {
+        chrome.runtime.sendMessage({ action: 'clearData' }, () => {
+            currentData = { emails: [], phones: [], socials: [] };
+            updateDisplay();
+            totalItems.textContent = '0';
+        });
+    });
 
-            emailElement.addEventListener('click', (e) => {
-                if (e.target.type === 'checkbox') {
-                    const checkbox = e.target;
-                    const emailText = email;
+    function updateDisplay() {
+        resultsContainer.style.display = 'block';
 
-                    if (checkbox.checked) {
-                        selectedEmails.add(emailText);
-                        emailElement.classList.add('selected');
-                    } else {
-                        selectedEmails.delete(emailText);
-                        emailElement.classList.remove('selected');
-                    }
-                }
-            });
+        renderList(emailList, currentData.emails, 'email');
+        renderList(phoneList, currentData.phones, 'phone');
+        renderList(socialList, currentData.socials, 'social');
 
-            // Bouton Highlight
-            const highlightBtn = emailElement.querySelector('.highlight-btn');
-            highlightBtn.addEventListener('click', (e) => {
-                e.stopPropagation();
-                chrome.runtime.sendMessage({
-                    action: 'highlightEmail',
-                    index: index,
-                    email: email
+        countEmails.textContent = currentData.emails.length;
+        countPhones.textContent = currentData.phones.length;
+        countSocials.textContent = currentData.socials.length;
+
+        totalItems.textContent = currentData.emails.length + currentData.phones.length + currentData.socials.length;
+    }
+
+    function renderList(container, items, type) {
+        container.innerHTML = '';
+        if (items.length === 0) {
+            container.innerHTML = '<p style="text-align:center; font-style:italic; color:#999;">Aucun résultat</p>';
+            return;
+        }
+
+        items.forEach((item, index) => {
+            const div = document.createElement('div');
+            div.className = `${type}-item`;
+            div.textContent = item;
+            div.style.cursor = 'pointer';
+            div.addEventListener('click', () => {
+                chrome.tabs.query({ active: true, currentWindow: true }, (tabs) => {
+                    chrome.tabs.sendMessage(tabs[0].id, { action: 'scrollToItem', type, index });
                 });
             });
-
-            emailList.appendChild(emailElement);
+            container.appendChild(div);
         });
     }
 
-    function simulateProgress() {
-        let progress = 0;
-        const interval = setInterval(() => {
-            if (progress >= 100 || !extractionActive) {
-                clearInterval(interval);
-                return;
-            }
-
-            progress += Math.random() * 15;
-            if (progress > 100) progress = 100;
-
-            progressFill.style.width = `${progress}%`;
-
-            if (progress >= 100) {
-                loader.querySelector('p').textContent = 'Processing emails...';
-            }
-        }, 200);
-    }
-
-    function stopExtraction() {
-        extractionActive = false;
+    function resetUI() {
         startBtn.style.display = 'block';
         stopBtn.style.display = 'none';
-        loader.style.display = 'none';
-        progressFill.style.width = '100%';
+        extractionProgress.style.display = 'none';
+    }
 
-        chrome.tabs.query({ active: true, currentWindow: true }, (tabs) => {
-            if (tabs[0]) {
-                chrome.tabs.sendMessage(tabs[0].id, { action: 'stopExtraction' });
-            }
+    async function loadStoredData() {
+        const data = await chrome.storage.local.get(['extractedEmails', 'extractedPhones', 'extractedSocials', 'totalItemsFound']);
+        currentData.emails = data.extractedEmails || [];
+        currentData.phones = data.extractedPhones || [];
+        currentData.socials = data.extractedSocials || [];
+        if (currentData.emails.length || currentData.phones.length || currentData.socials.length) {
+            updateDisplay();
+        }
+        totalItems.textContent = data.totalItemsFound || '0';
+    }
+
+    function copyToClipboard(items, btn) {
+        if (items.length === 0) return;
+        const text = items.join('\n');
+        navigator.clipboard.writeText(text).then(() => {
+            const originalText = btn.textContent;
+            btn.textContent = 'Copié !';
+            setTimeout(() => btn.textContent = originalText, 2000);
         });
     }
-
-    function showNotification(message) {
-        notification.textContent = message;
-        notification.style.display = 'block';
-        setTimeout(() => {
-            notification.style.display = 'none';
-        }, 3000);
-    }
-
-    // Gérer la déconnexion de l'onglet
-    chrome.tabs.onRemoved.addListener(() => {
-        stopExtraction();
-    });
 });
